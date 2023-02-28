@@ -1,16 +1,14 @@
 use anyhow::{Context, Result};
-use std::{
-    io::{self, Write},
-    process,
-};
+use std::process;
 
-// Usage: your_docker.sh run <image> <command> <arg1> <arg2> ...
 fn main() -> Result<()> {
     let args: Vec<_> = std::env::args().collect();
 
     let piped_command = &args[3];
     let piped_command_args = &args[4..];
-    let output = process::Command::new(piped_command)
+    let child_process = process::Command::new(piped_command)
+        .stdout(process::Stdio::inherit())
+        .stderr(process::Stdio::inherit())
         .args(piped_command_args)
         .output()
         .with_context(|| {
@@ -20,12 +18,16 @@ fn main() -> Result<()> {
             )
         })?;
 
-    if !output.status.success() {
-        process::exit(1);
-    }
-
-    io::stdout().write_all(&output.stdout)?;
-    io::stderr().write_all(&output.stderr)?;
+    let status_code = child_process.status.code();
+    handle_exit_code(status_code);
 
     Ok(())
+}
+
+fn handle_exit_code(status_code: Option<i32>) {
+    if let None = status_code {
+        return;
+    }
+
+    process::exit(status_code.unwrap());
 }
